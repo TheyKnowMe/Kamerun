@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,17 +31,20 @@ import java.io.File
 
 private const val TAG = "PlaylistDetail"
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistDetailScreen(
     playlist: PlaylistEntity?,
     songs: List<SongEntity>,
+    allSongs: List<SongEntity>,
     onBack: () -> Unit,
     onRemoveSong: (Long) -> Unit,
+    onAddSong: (SongEntity) -> Unit,
     musicPlayer: MusicPlayer,
 ) {
     val playerState by musicPlayer.state.collectAsState()
+    var showAddSheet by remember { mutableStateOf(false) }
 
-    // Debug logging
     LaunchedEffect(songs) {
         Log.d(TAG, "Songs count: ${songs.size}")
         songs.forEachIndexed { i, s ->
@@ -78,6 +83,14 @@ fun PlaylistDetailScreen(
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.weight(1f),
                 )
+                IconButton(onClick = { showAddSheet = true }, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Add songs",
+                        tint = WinampTextBright,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
         }
 
@@ -175,6 +188,156 @@ fun PlaylistDetailScreen(
                 color = WinampTextDim,
                 style = MaterialTheme.typography.labelSmall,
             )
+        }
+    }
+
+    if (showAddSheet) {
+        val songsNotInPlaylist = remember(allSongs, songs) {
+            val inPlaylistIds = songs.map { it.id }.toSet()
+            allSongs.filter { it.id !in inPlaylistIds }
+        }
+        AddSongSheet(
+            songs = songsNotInPlaylist,
+            onAdd = { song ->
+                onAddSong(song)
+            },
+            onDismiss = { showAddSheet = false },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddSongSheet(
+    songs: List<SongEntity>,
+    onAdd: (SongEntity) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(songs, query) {
+        if (query.isBlank()) songs
+        else songs.filter {
+            it.title.contains(query, ignoreCase = true) ||
+            it.artist.contains(query, ignoreCase = true)
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = WinampDarkBg,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(WinampGreenDark)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(
+                    "ADD SONGS TO PLAYLIST",
+                    color = WinampTextBright,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        },
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("SEARCH...", color = WinampGreenDim, style = MaterialTheme.typography.bodySmall) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = WinampGreen,
+                    unfocusedTextColor = WinampGreenDim,
+                    focusedBorderColor = WinampGreen,
+                    unfocusedBorderColor = WinampBorderDark,
+                    cursorColor = WinampGreen,
+                ),
+                textStyle = MaterialTheme.typography.bodySmall,
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = WinampGreenDim, modifier = Modifier.size(16.dp))
+                },
+                trailingIcon = if (query.isNotEmpty()) {
+                    { IconButton(onClick = { query = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = null, tint = WinampGreenDim, modifier = Modifier.size(14.dp))
+                    }}
+                } else null,
+            )
+
+            if (filtered.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (songs.isEmpty()) "ALL SONGS ALREADY IN PLAYLIST" else "NO RESULTS",
+                        color = WinampGreenDim,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                ) {
+                    items(filtered, key = { it.id }) { song ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onAdd(song) }
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val imageModel: Any? = when {
+                                song.thumbnailPath != null && File(song.thumbnailPath).exists() -> File(song.thumbnailPath)
+                                song.thumbnailUrl != null -> song.thumbnailUrl
+                                else -> null
+                            }
+                            if (imageModel != null) {
+                                AsyncImage(
+                                    model = imageModel,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .border(1.dp, WinampBorderDark, RoundedCornerShape(2.dp)),
+                                    contentScale = ContentScale.Crop,
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    song.title.uppercase(),
+                                    color = WinampGreenDim,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    song.artist.uppercase(),
+                                    color = WinampTextDim,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = "Add",
+                                tint = WinampGreen,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        HorizontalDivider(color = WinampBorderDark.copy(alpha = 0.4f), thickness = 0.5.dp)
+                    }
+                }
+            }
         }
     }
 }

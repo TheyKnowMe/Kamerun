@@ -3,8 +3,10 @@ package com.ME.kamerun.ui.screens.playlists
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ME.kamerun.data.local.PlaylistDao
+import com.ME.kamerun.data.local.SongDao
 import com.ME.kamerun.data.local.entities.PlaylistEntity
 import com.ME.kamerun.data.local.entities.PlaylistSongCrossRef
+import com.ME.kamerun.data.local.entities.SongEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,7 +15,11 @@ import javax.inject.Inject
 @HiltViewModel
 class PlaylistsViewModel @Inject constructor(
     private val playlistDao: PlaylistDao,
+    private val songDao: SongDao,
 ) : ViewModel() {
+
+    val allSongs: StateFlow<List<SongEntity>> = songDao.getAllSongs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val playlists: StateFlow<List<PlaylistEntity>> = playlistDao.getAllPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -59,6 +65,15 @@ class PlaylistsViewModel @Inject constructor(
     fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
         viewModelScope.launch {
             playlistDao.removeSongFromPlaylist(playlistId, songId)
+        }
+    }
+
+    fun addSongToPlaylist(playlistId: Long, songId: Long) {
+        viewModelScope.launch {
+            val position = playlistDao.getSongCountForPlaylist(playlistId)
+            playlistDao.insertPlaylistSong(
+                PlaylistSongCrossRef(playlistId = playlistId, songId = songId, position = position)
+            )
         }
     }
 }

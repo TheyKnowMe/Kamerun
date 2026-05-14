@@ -160,6 +160,7 @@ fun AppNavGraph(
                 }
                 val songs by viewModel.getSongsForPlaylist(playlistId)
                     .collectAsState(initial = emptyList())
+                val allSongs by viewModel.allSongs.collectAsState()
 
                 LaunchedEffect(playlistId) {
                     playlist = viewModel.getPlaylistById(playlistId)
@@ -168,9 +169,13 @@ fun AppNavGraph(
                 PlaylistDetailScreen(
                     playlist = playlist,
                     songs = songs,
+                    allSongs = allSongs,
                     onBack = { navController.popBackStack() },
                     onRemoveSong = { songId ->
                         viewModel.removeSongFromPlaylist(playlistId, songId)
+                    },
+                    onAddSong = { song ->
+                        viewModel.addSongToPlaylist(playlistId, song.id)
                     },
                     musicPlayer = musicPlayer,
                 )
