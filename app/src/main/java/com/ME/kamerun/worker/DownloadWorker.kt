@@ -6,7 +6,10 @@ import android.content.Context
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.hilt.work.HiltWorker
-import androidx.work.*
+import androidx.work.CoroutineWorker
+import androidx.work.ForegroundInfo
+import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.ME.kamerun.data.remote.YouTubeRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -20,13 +23,13 @@ const val KEY_ERROR = "error_message"
 
 @HiltWorker
 class DownloadWorker @AssistedInject constructor(
-    @Assisted private val context: Context,
+    @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
     private val youTubeRepository: YouTubeRepository,
-) : CoroutineWorker(context, workerParams) {
+) : CoroutineWorker(appContext, workerParams) {
 
     private val notificationManager =
-        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     override suspend fun doWork(): Result {
         val url = inputData.getString(KEY_URL)
@@ -38,40 +41,33 @@ class DownloadWorker @AssistedInject constructor(
         return try {
             val result = youTubeRepository.importPlaylist(
                 playlistUrl = url,
-                onProgress = { current, total, songTitle ->
+                onProgress = { current: Int, total: Int, songTitle: String ->
                     Log.d(TAG, "Progress: $current/$total – $songTitle")
-
-                    // Progress an WorkManager melden (für ViewModel)
-                    setProgressAsync(workDataOf(
-                        "current" to current,
-                        "total" to total,
-                        "song" to songTitle,
-                    ))
-
-                    // Notification updaten
                     updateNotification(songTitle, current, total)
                 },
             )
 
             result.fold(
-                onSuccess = { count ->
+                onSuccess = { count: Int ->
                     showFinishedNotification(count)
                     Result.success(workDataOf(KEY_SUCCESS_COUNT to count))
                 },
-                onFailure = { error ->
-                    showErrorNotification(error.message ?: "Unbekannter Fehler")
-                    Result.failure(workDataOf(KEY_ERROR to error.message))
+                onFailure = { error: Throwable ->
+                    val msg = error.message ?: "Unbekannter Fehler"
+                    showErrorNotification(msg)
+                    Result.failure(workDataOf(KEY_ERROR to msg))
                 },
             )
         } catch (e: Exception) {
             Log.e(TAG, "Worker exception", e)
-            showErrorNotification(e.message ?: "Unbekannter Fehler")
-            Result.failure(workDataOf(KEY_ERROR to e.message))
+            val msg = e.message ?: "Unbekannter Fehler"
+            showErrorNotification(msg)
+            Result.failure(workDataOf(KEY_ERROR to msg))
         }
     }
 
     private fun updateNotification(currentSong: String, progress: Int, total: Int) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("⬇ Kamerun Download")
             .setContentText(currentSong)
@@ -83,11 +79,11 @@ class DownloadWorker @AssistedInject constructor(
     }
 
     private fun createForegroundInfo(text: String, progress: Int, total: Int): ForegroundInfo {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("⬇ Kamerun Download")
             .setContentText(text)
-            .setProgress(total, progress, true)
+            .setProgress(total, progress, total == 0)
             .setOngoing(true)
             .setSilent(true)
             .build()
@@ -95,7 +91,7 @@ class DownloadWorker @AssistedInject constructor(
     }
 
     private fun showFinishedNotification(count: Int) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("✓ Download abgeschlossen")
             .setContentText("$count Songs erfolgreich importiert")
@@ -105,7 +101,7 @@ class DownloadWorker @AssistedInject constructor(
     }
 
     private fun showErrorNotification(error: String) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("✗ Download fehlgeschlagen")
             .setContentText(error)
