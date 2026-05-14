@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ME.kamerun.data.local.entities.SongEntity
 import com.ME.kamerun.ui.screens.library.LibraryViewModel
 import com.ME.kamerun.ui.screens.playlists.PlaylistsViewModel
 import com.ME.kamerun.ui.theme.*
@@ -32,6 +33,11 @@ fun AddScreen(
 ) {
     val songs by libraryViewModel.songs.collectAsState()
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+
+    // Delete song dialog state
+    var songToDelete by remember { mutableStateOf<SongEntity?>(null) }
+    // Delete all dialog state
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -85,8 +91,8 @@ fun AddScreen(
             )
         }
 
-        // Song library title
-        Box(
+        // Song library title + Delete All button
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 2.dp)
@@ -96,12 +102,36 @@ fun AddScreen(
                     )
                 )
                 .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "LIBRARY (${songs.size} TRACKS)",
                 color = WinampTextBright,
                 style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
             )
+            // Delete All Button – nur anzeigen wenn Songs vorhanden
+            if (songs.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .clickable { showDeleteAllDialog = true }
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.DeleteSweep,
+                        contentDescription = "Alle löschen",
+                        tint = WinampRed,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "ALL",
+                        color = WinampRed,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
         }
 
         // Song List
@@ -156,8 +186,9 @@ fun AddScreen(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
+                        // Löschen-Button öffnet jetzt Dialog
                         IconButton(
-                            onClick = { libraryViewModel.deleteSong(song) },
+                            onClick = { songToDelete = song },
                             modifier = Modifier.size(22.dp),
                         ) {
                             Icon(
@@ -173,6 +204,37 @@ fun AddScreen(
         }
     }
 
+    // ── Dialog: Einzelnen Song löschen ──
+    songToDelete?.let { song ->
+        WinampConfirmDialog(
+            title = "DELETE TRACK",
+            message = "${song.artist} - ${song.title}",
+            confirmText = "DELETE",
+            confirmColor = WinampRed,
+            onConfirm = {
+                libraryViewModel.deleteSong(song)
+                songToDelete = null
+            },
+            onDismiss = { songToDelete = null },
+        )
+    }
+
+    // ── Dialog: Alle Songs löschen ──
+    if (showDeleteAllDialog) {
+        WinampConfirmDialog(
+            title = "DELETE ALL TRACKS",
+            message = "Alle ${songs.size} Songs aus der Library löschen? Die MP3-Dateien werden ebenfalls gelöscht.",
+            confirmText = "DELETE ALL",
+            confirmColor = WinampRed,
+            onConfirm = {
+                songs.forEach { libraryViewModel.deleteSong(it) }
+                showDeleteAllDialog = false
+            },
+            onDismiss = { showDeleteAllDialog = false },
+        )
+    }
+
+    // ── Dialog: Neue Playlist erstellen ──
     if (showCreatePlaylistDialog) {
         WinampCreatePlaylistDialog(
             onDismiss = { showCreatePlaylistDialog = false },
@@ -182,6 +244,43 @@ fun AddScreen(
             },
         )
     }
+}
+
+// ── Wiederverwendbarer Bestätigungs-Dialog ──
+@Composable
+fun WinampConfirmDialog(
+    title: String,
+    message: String,
+    confirmText: String,
+    confirmColor: Color,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(title, color = confirmColor, style = MaterialTheme.typography.labelLarge)
+        },
+        text = {
+            Text(
+                message,
+                color = WinampTextBright,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(confirmText, color = confirmColor)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CANCEL", color = WinampTextDim)
+            }
+        },
+        containerColor = WinampDarkBg,
+        shape = RoundedCornerShape(2.dp),
+    )
 }
 
 @Composable
@@ -263,5 +362,6 @@ private fun WinampCreatePlaylistDialog(
             }
         },
         containerColor = WinampDarkBg,
+        shape = RoundedCornerShape(2.dp),
     )
 }
