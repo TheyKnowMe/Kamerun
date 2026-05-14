@@ -1,5 +1,9 @@
 package com.ME.kamerun.ui.screens.import_songs
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -7,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +20,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.work.WorkInfo
 import com.ME.kamerun.ui.theme.*
 
 @Composable
@@ -27,6 +31,17 @@ fun ImportScreen(
     val uiState by viewModel.uiState.collectAsState()
     var playlistUrl by remember { mutableStateOf("") }
     val clipboardManager = LocalClipboardManager.current
+
+    // Notification Permission (Android 13+)
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Permission erteilt oder verweigert – egal, Download läuft trotzdem */ }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -62,7 +77,6 @@ fun ImportScreen(
             }
         }
 
-        // Content
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -82,10 +96,7 @@ fun ImportScreen(
                 onValueChange = { playlistUrl = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
-                    Text(
-                        "https://youtube.com/playlist?list=...",
-                        color = WinampTextDim,
-                    )
+                    Text("https://youtube.com/playlist?list=...", color = WinampTextDim)
                 },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -97,20 +108,16 @@ fun ImportScreen(
                 ),
                 trailingIcon = {
                     IconButton(onClick = {
-                        clipboardManager.getText()?.let {
-                            playlistUrl = it.text
-                        }
+                        clipboardManager.getText()?.let { playlistUrl = it.text }
                     }) {
-                        Icon(
-                            Icons.Default.ContentPaste,
-                            contentDescription = "Einfügen",
-                            tint = WinampYellow,
-                        )
+                        Icon(Icons.Default.ContentPaste, contentDescription = "Einfügen",
+                            tint = WinampYellow)
                     }
                 },
             )
 
             when {
+                // ── Loading / Running ──
                 uiState.isLoading -> {
                     Box(
                         modifier = Modifier
@@ -131,9 +138,7 @@ fun ImportScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                 )
                                 LinearProgressIndicator(
-                                    progress = {
-                                        uiState.progress.toFloat() / uiState.total.toFloat()
-                                    },
+                                    progress = { uiState.progress.toFloat() / uiState.total.toFloat() },
                                     modifier = Modifier.fillMaxWidth(),
                                     color = WinampGreen,
                                     trackColor = WinampSliderBg,
@@ -147,7 +152,7 @@ fun ImportScreen(
                                 )
                             } else {
                                 Text(
-                                    "ANALYZING PLAYLIST...",
+                                    uiState.currentSong.ifBlank { "ANALYZING PLAYLIST..." }.uppercase(),
                                     color = WinampYellow,
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
@@ -157,10 +162,21 @@ fun ImportScreen(
                                     trackColor = WinampSliderBg,
                                 )
                             }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Info: App kann geschlossen werden
+                            Text(
+                                "Download läuft im Hintergrund.\nDu kannst die App schliessen.",
+                                color = WinampTextDim,
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
                         }
                     }
                 }
 
+                // ── Fehler ──
                 uiState.error != null -> {
                     Box(
                         modifier = Modifier
@@ -170,20 +186,12 @@ fun ImportScreen(
                             .padding(12.dp),
                     ) {
                         Column {
-                            Text(
-                                "ERROR",
-                                color = WinampRed,
-                                style = MaterialTheme.typography.labelLarge,
-                            )
+                            Text("ERROR", color = WinampRed, style = MaterialTheme.typography.labelLarge)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                uiState.error!!,
-                                color = WinampRed.copy(alpha = 0.8f),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                            Text(uiState.error!!, color = WinampRed.copy(alpha = 0.8f),
+                                style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
                     WinampRetroButton(
                         text = "RETRY",
                         color = WinampYellow,
@@ -191,6 +199,7 @@ fun ImportScreen(
                     )
                 }
 
+                // ── Erfolg ──
                 uiState.successCount != null -> {
                     Box(
                         modifier = Modifier
@@ -201,28 +210,18 @@ fun ImportScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "DOWNLOAD COMPLETE",
-                                color = WinampGreen,
-                                style = MaterialTheme.typography.titleMedium,
-                            )
+                            Text("DOWNLOAD COMPLETE", color = WinampGreen,
+                                style = MaterialTheme.typography.titleMedium)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "${uiState.successCount} TRACKS IMPORTED",
-                                color = WinampGreenDim,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
+                            Text("${uiState.successCount} TRACKS IMPORTED", color = WinampGreenDim,
+                                style = MaterialTheme.typography.bodyLarge)
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         WinampRetroButton(
                             text = "IMPORT MORE",
                             color = WinampGreen,
-                            onClick = {
-                                viewModel.resetState()
-                                playlistUrl = ""
-                            },
+                            onClick = { viewModel.resetState(); playlistUrl = "" },
                         )
                         WinampRetroButton(
                             text = "DONE",
@@ -232,6 +231,7 @@ fun ImportScreen(
                     }
                 }
 
+                // ── Start-Zustand ──
                 else -> {
                     WinampRetroButton(
                         text = "▶ DOWNLOAD",
@@ -239,6 +239,12 @@ fun ImportScreen(
                         onClick = { viewModel.importPlaylist(playlistUrl) },
                         enabled = playlistUrl.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
+                    )
+                    // Hinweis
+                    Text(
+                        "Der Download läuft im Hintergrund.\nDu bekommst eine Benachrichtigung wenn er fertig ist.",
+                        color = WinampTextDim,
+                        style = MaterialTheme.typography.labelSmall,
                     )
                 }
             }
@@ -262,12 +268,10 @@ private fun WinampRetroButton(
         color = if (enabled) WinampButtonBg else WinampBorderDark,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            Brush.verticalGradient(
-                listOf(
-                    if (enabled) WinampBorderLight else WinampBorderDark,
-                    WinampBorderDark,
-                )
-            )
+            Brush.verticalGradient(listOf(
+                if (enabled) WinampBorderLight else WinampBorderDark,
+                WinampBorderDark,
+            ))
         ),
     ) {
         Box(

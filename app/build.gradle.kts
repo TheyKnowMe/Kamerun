@@ -6,8 +6,6 @@ plugins {
     alias(libs.plugins.hilt.android)
 }
 
-
-
 android {
     namespace = "com.ME.kamerun"
     compileSdk = 35
@@ -58,7 +56,6 @@ android {
     androidResources {
         noCompress += "so"
     }
-
 }
 
 dependencies {
@@ -89,15 +86,20 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
-    // Coil (Bilder)
+    // Coil
     implementation(libs.coil.compose)
 
-    // Lottie (Animationen)
+    // Lottie
     implementation(libs.lottie.compose)
 
-    // yt-dlp (YouTube Download)
+    // yt-dlp
     implementation(libs.youtubedl.library)
     implementation(libs.youtubedl.ffmpeg)
+
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
 
     // Test
     testImplementation(libs.junit)

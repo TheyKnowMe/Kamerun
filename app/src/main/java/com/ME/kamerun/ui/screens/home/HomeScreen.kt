@@ -29,6 +29,7 @@ import com.ME.kamerun.data.local.entities.PlaylistEntity
 import com.ME.kamerun.data.local.entities.SongEntity
 import com.ME.kamerun.player.MusicPlayer
 import com.ME.kamerun.player.PlayerState
+import com.ME.kamerun.ui.screens.add.WinampConfirmDialog
 import com.ME.kamerun.ui.screens.playlists.PlaylistsViewModel
 import com.ME.kamerun.ui.theme.*
 import kotlinx.coroutines.delay
@@ -42,6 +43,9 @@ fun HomeScreen(
 ) {
     val playlists by viewModel.playlists.collectAsState()
     val playerState by musicPlayer.state.collectAsState()
+
+    // Confirm dialog state
+    var playlistToDelete by remember { mutableStateOf<PlaylistEntity?>(null) }
 
     // Position updater
     var currentPosition by remember { mutableStateOf(0L) }
@@ -66,12 +70,27 @@ fun HomeScreen(
             onSeek = { musicPlayer.seekTo(it) },
         )
 
-        // ── Playlist List (wie Winamp Playlist Editor) ──
+        // ── Playlist List ──
         WinampPlaylistPanel(
             playlists = playlists,
             onPlaylistClick = onPlaylistClick,
-            onDelete = { viewModel.deletePlaylist(it) },
+            onDeleteRequest = { playlistToDelete = it },
             modifier = Modifier.weight(1f),
+        )
+    }
+
+    // ── Confirm Dialog: Playlist löschen ──
+    playlistToDelete?.let { playlist ->
+        WinampConfirmDialog(
+            title = "DELETE PLAYLIST",
+            message = "\"${playlist.name}\" löschen?",
+            confirmText = "DELETE",
+            confirmColor = WinampRed,
+            onConfirm = {
+                viewModel.deletePlaylist(playlist)
+                playlistToDelete = null
+            },
+            onDismiss = { playlistToDelete = null },
         )
     }
 }
@@ -164,7 +183,6 @@ private fun WinampPlayerPanel(
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    // Song title – scrolling marquee effect
                     if (song != null) {
                         Text(
                             text = "${song.artist} - ${song.title}",
@@ -183,7 +201,6 @@ private fun WinampPlayerPanel(
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    // Bitrate / kHz info
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         WinampInfoBadge("320", "kbps")
                         WinampInfoBadge("44", "kHz")
@@ -304,13 +321,13 @@ private fun WinampButton(
     }
 }
 
-// ── Playlist Panel (untere Hälfte) ──
+// ── Playlist Panel ──
 
 @Composable
 private fun WinampPlaylistPanel(
     playlists: List<PlaylistEntity>,
     onPlaylistClick: (Long) -> Unit,
-    onDelete: (PlaylistEntity) -> Unit,
+    onDeleteRequest: (PlaylistEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -324,7 +341,6 @@ private fun WinampPlaylistPanel(
             )
             .border(1.dp, WinampBorderLight),
     ) {
-        // Panel Title
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -377,21 +393,17 @@ private fun WinampPlaylistPanel(
                         index = index + 1,
                         playlist = playlist,
                         onClick = { onPlaylistClick(playlist.id) },
-                        onDelete = { onDelete(playlist) },
+                        onDeleteRequest = { onDeleteRequest(playlist) },
                     )
                 }
             }
         }
 
-        // Bottom info bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(WinampPanelBg)
-                .border(
-                    width = 1.dp,
-                    color = WinampBorderLight,
-                )
+                .border(width = 1.dp, color = WinampBorderLight)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
             Text(
@@ -408,7 +420,7 @@ private fun WinampPlaylistRow(
     index: Int,
     playlist: PlaylistEntity,
     onClick: () -> Unit,
-    onDelete: () -> Unit,
+    onDeleteRequest: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -417,7 +429,6 @@ private fun WinampPlaylistRow(
             .padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Index
         Text(
             text = String.format("%02d", index),
             color = WinampGreenDark,
@@ -430,7 +441,6 @@ private fun WinampPlaylistRow(
             style = MaterialTheme.typography.bodySmall,
         )
 
-        // Vibe Icon
         if (playlist.isAiGenerated) {
             Text(
                 text = "★ ",
@@ -439,7 +449,6 @@ private fun WinampPlaylistRow(
             )
         }
 
-        // Playlist Name
         Text(
             text = playlist.name.uppercase(),
             color = WinampGreen,
@@ -449,7 +458,6 @@ private fun WinampPlaylistRow(
             modifier = Modifier.weight(1f),
         )
 
-        // Vibe subtitle
         if (playlist.isAiGenerated && playlist.vibe != null) {
             Text(
                 text = playlist.vibe.uppercase(),
@@ -460,8 +468,8 @@ private fun WinampPlaylistRow(
             )
         }
 
-        // Delete
-        IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
+        // Löschen-Button → öffnet jetzt Dialog
+        IconButton(onClick = onDeleteRequest, modifier = Modifier.size(24.dp)) {
             Icon(
                 Icons.Default.Close,
                 contentDescription = "Löschen",
