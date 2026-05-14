@@ -104,7 +104,7 @@ class MusicPlayer @Inject constructor(
         val mp = mediaPlayer ?: return
         if (mp.isPlaying) {
             mp.pause()
-            _state.value = _state.value.copy(isPlaying = false)
+            _state.value = _state.value.copy(isPlaying = false, currentPosition = mp.currentPosition.toLong())
             Log.d(TAG, "togglePlayPause: PAUSED")
         } else {
             mp.start()
@@ -127,6 +127,7 @@ class MusicPlayer @Inject constructor(
         val pos = mediaPlayer?.currentPosition ?: 0
         if (pos > 3000) {
             mediaPlayer?.seekTo(0)
+            _state.value = _state.value.copy(currentPosition = 0L)
             return
         }
         val prevIndex = if (s.queueIndex > 0) s.queueIndex - 1 else s.queue.size - 1
@@ -135,6 +136,7 @@ class MusicPlayer @Inject constructor(
 
     fun seekTo(positionMs: Long) {
         mediaPlayer?.seekTo(positionMs.toInt())
+        _state.value = _state.value.copy(currentPosition = positionMs)
     }
 
     fun getCurrentPosition(): Long {
