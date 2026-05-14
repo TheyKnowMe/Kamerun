@@ -1,8 +1,11 @@
 package com.ME.kamerun.player
 
+import android.content.Context
+import android.content.Intent
 import android.media.MediaPlayer
 import android.util.Log
 import com.ME.kamerun.data.local.entities.SongEntity
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
@@ -21,7 +24,9 @@ data class PlayerState(
 )
 
 @Singleton
-class MusicPlayer @Inject constructor() {
+class MusicPlayer @Inject constructor(
+    @ApplicationContext private val context: Context,
+) {
 
     private var mediaPlayer: MediaPlayer? = null
 
@@ -53,6 +58,8 @@ class MusicPlayer @Inject constructor() {
 
         val index = if (queue.isNotEmpty()) queue.indexOf(song).coerceAtLeast(0) else 0
         val actualQueue = queue.ifEmpty { listOf(song) }
+
+        context.startForegroundService(Intent(context, MusicService::class.java))
 
         stop()
 
