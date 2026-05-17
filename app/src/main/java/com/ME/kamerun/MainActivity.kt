@@ -28,6 +28,5 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        musicPlayer.release()
     }
 }
