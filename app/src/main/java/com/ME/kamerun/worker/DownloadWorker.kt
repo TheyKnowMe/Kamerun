@@ -3,6 +3,8 @@ package com.ME.kamerun.worker
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.hilt.work.HiltWorker
@@ -36,7 +38,7 @@ class DownloadWorker @AssistedInject constructor(
             ?: return Result.failure(workDataOf(KEY_ERROR to "Keine URL angegeben"))
 
         createNotificationChannel()
-        setForeground(createForegroundInfo("Playlist wird analysiert...", 0, 0))
+        setForeground(createForegroundInfo("Playlist wird analysiert..."))
 
         return try {
             val result = youTubeRepository.importPlaylist(
@@ -78,16 +80,27 @@ class DownloadWorker @AssistedInject constructor(
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun createForegroundInfo(text: String, progress: Int, total: Int): ForegroundInfo {
+    // ForegroundInfo MIT ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+    private fun createForegroundInfo(text: String): ForegroundInfo {
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("⬇ Kamerun Download")
             .setContentText(text)
-            .setProgress(total, progress, total == 0)
+            .setProgress(0, 0, true)
             .setOngoing(true)
             .setSilent(true)
             .build()
-        return ForegroundInfo(NOTIFICATION_ID, notification)
+
+        // Ab Android 10 (API 29) muss der ForegroundServiceType angegeben werden
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            )
+        } else {
+            ForegroundInfo(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun showFinishedNotification(count: Int) {
