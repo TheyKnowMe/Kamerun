@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application
         android:name=".KamerunApp"
@@ -31,6 +32,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".player.MusicService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
 
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
